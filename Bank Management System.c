@@ -2,178 +2,106 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Define structures for customer and account
-typedef struct {
-    int customerID;
-    char name[50];
-    char address[100];
-    char phone[15];
-    char email[50];
-    char password[20]; // Adding password field for customers
-} Customer;
+#define FILENAME "bank_data.txt"
 
-typedef struct {
+struct BankAccount {
     int accountNumber;
-    int customerID;
+    char accountHolder[100];
     float balance;
-    char password[20]; // Adding password field for accounts
-} Account;
+};
 
-// Define globals
-Customer customers[100];
-Account accounts[100];
-int numCustomers = 0;
-int numAccounts = 0;
-
-// Function prototypes
-void addCustomer();
-void openAccount();
-void processTransaction();
-int authenticateCustomer(int customerID, char *password);
-int authenticateAccount(int accountNumber, char *password);
-void encrypt(char *data);
-void decrypt(char *data);
-
-// Function to add a new customer
-void addCustomer() {
-    Customer newCustomer;
-    
-    printf("Enter customer name: ");
-    scanf("%s", newCustomer.name);
-    printf("Enter address: ");
-    scanf("%s", newCustomer.address);
-    printf("Enter phone number: ");
-    scanf("%s", newCustomer.phone);
-    printf("Enter email: ");
-    scanf("%s", newCustomer.email);
-    printf("Set password: ");
-    scanf("%s", newCustomer.password); // Set password for the customer
-    
-    encrypt(newCustomer.password); // Encrypt the password before storing
-    
-    newCustomer.customerID = numCustomers + 1;
-    customers[numCustomers++] = newCustomer;
+void saveAccount(struct BankAccount *account) {
+    FILE *file = fopen(FILENAME, "ab");
+    if (file == NULL) {
+        perror("Error opening file");
+        exit(EXIT_FAILURE);
+    }
+    fwrite(account, sizeof(struct BankAccount), 1, file);
+    fclose(file);
 }
 
-// Function to open a new account for an existing customer
-void openAccount() {
-    int customerID;
-    printf("Enter customer ID: ");
-    scanf("%d", &customerID);
+void loadAccounts() {
+    FILE *file = fopen(FILENAME, "rb");
+    if (file == NULL) {
+        perror("Error opening file");
+        exit(EXIT_FAILURE);
+    }
+    struct BankAccount account;
+    while (fread(&account, sizeof(struct BankAccount), 1, file) == 1) {
+        printf("Account Number: %d\n", account.accountNumber);
+        printf("Account Holder: %s\n", account.accountHolder);
+        printf("Balance: %.2f\n", account.balance);
+        printf("\n");
+    }
+    fclose(file);
+}
 
-    Account newAccount;
-    newAccount.customerID = customerID;
-    newAccount.accountNumber = 1000 + numAccounts + 1;
+void createAccount() {
+    struct BankAccount newAccount;
+    printf("Enter Account Number: ");
+    scanf("%d", &newAccount.accountNumber);
+    printf("Enter Account Holder Name: ");
+    scanf("%s", newAccount.accountHolder);
     newAccount.balance = 0.0;
-    printf("Set account password: ");
-    scanf("%s", newAccount.password); // Set password for the account
-    
-    encrypt(newAccount.password); // Encrypt the password before storing
-    
-    accounts[numAccounts++] = newAccount;
-    printf("Account opened successfully with account number: %d\n", newAccount.accountNumber);
+    saveAccount(&newAccount);
+    printf("Account created successfully!\n");
 }
 
-// Function to process a transaction
-void processTransaction() {
+void deposit() {
     int accountNumber;
     float amount;
-    char type[10];
-    char password[20];
-    
-    printf("Enter account number: ");
+    printf("Enter Account Number: ");
     scanf("%d", &accountNumber);
-    printf("Enter account password: ");
-    scanf("%s", password);
-    
-    if (authenticateAccount(accountNumber, password)) {
-        printf("Enter transaction type (deposit/withdraw): ");
-        scanf("%s", type);
-        printf("Enter amount: ");
-        scanf("%f", &amount);
-
-        for (int i = 0; i < numAccounts; i++) {
-            if (accounts[i].accountNumber == accountNumber) {
-                if (strcmp(type, "deposit") == 0) {
-                    accounts[i].balance += amount;
-                    printf("Deposit successful. New balance: %.2f\n", accounts[i].balance);
-                } else if (strcmp(type, "withdraw") == 0) {
-                    if (amount <= accounts[i].balance) {
-                        accounts[i].balance -= amount;
-                        printf("Withdrawal successful. New balance: %.2f\n", accounts[i].balance);
-                    } else {
-                        printf("Insufficient balance\n");
-                    }
-                } else {
-                    printf("Invalid transaction type\n");
-                }
-                return;
-            }
-        }
-        printf("Account not found\n");
-    } else {
-        printf("Authentication failed. Invalid account number or password.\n");
+    FILE *file = fopen(FILENAME, "rb+");
+    if (file == NULL) {
+        perror("Error opening file");
+        exit(EXIT_FAILURE);
     }
-}
-
-// Function to authenticate customer using customer ID and password
-int authenticateCustomer(int customerID, char *password) {
-    for (int i = 0; i < numCustomers; i++) {
-        if (customers[i].customerID == customerID) {
-            decrypt(customers[i].password); // Decrypt stored password for comparison
-            if (strcmp(customers[i].password, password) == 0) {
-                encrypt(customers[i].password); // Re-encrypt the password after comparison
-                return 1; // Authentication successful
-            }
-            encrypt(customers[i].password); // Re-encrypt the password after comparison
-            return 0; // Authentication failed
+    struct BankAccount account;
+    int found = 0;
+    while (fread(&account, sizeof(struct BankAccount), 1, file) == 1) {
+        if (account.accountNumber == accountNumber) {
+            found = 1;
+            printf("Enter the deposit amount: ");
+            scanf("%f", &amount);
+            account.balance += amount;
+            fseek(file, -sizeof(struct BankAccount), SEEK_CUR);
+            fwrite(&account, sizeof(struct BankAccount), 1, file);
+            printf("Deposit successful. New balance: %.2f\n", account.balance);
+            break;
         }
     }
-    return 0; // Customer ID not found
-}
-
-// Function to authenticate account using account number and password
-int authenticateAccount(int accountNumber, char *password) {
-    for (int i = 0; i < numAccounts; i++) {
-        if (accounts[i].accountNumber == accountNumber) {
-            decrypt(accounts[i].password); // Decrypt stored password for comparison
-            if (strcmp(accounts[i].password, password) == 0) {
-                encrypt(accounts[i].password); // Re-encrypt the password after comparison
-                return 1; // Authentication successful
-            }
-            encrypt(accounts[i].password); // Re-encrypt the password after comparison
-            return 0; // Authentication failed
-        }
-    }
-    return 0; // Account number not found
-}
-
-// Function to perform simple encryption
-void encrypt(char *data) {
-    // This is a placeholder for encryption logic.
-    // You should implement a secure encryption algorithm here.
-    // For simplicity, this example uses a basic XOR encryption.
-    int key = 5;
-    for (int i = 0; data[i] != '\0'; ++i) {
-        data[i] = data[i] ^ key;
+    fclose(file);
+    if (!found) {
+        printf("Account not found!\n");
     }
 }
 
-// Function to perform simple decryption
-void decrypt(char *data) {
-    // This is a placeholder for decryption logic.
-    // The decryption logic should be the reverse of the encryption logic.
-    // For simplicity, this example uses a basic XOR decryption.
-    int key = 5;
-    for (int i = 0; data[i] != '\0'; ++i) {
-        data[i] = data[i] ^ key;
-    }
-}
+// Implement similar functions for withdrawal and balance check 
 
-// Main function for demonstration
 int main() {
-    addCustomer();
-    openAccount();
-    processTransaction();
+    int choice;
+    do {
+        printf("\n1. Create Account\n2. Deposit\n3. Withdraw\n4. Check Balance\n5. View All Accounts\n0. Exit\n");
+        printf("Enter your choice: ");
+        scanf("%d", &choice);
+        switch (choice) {
+            case 1:
+                createAccount();
+                break;
+            case 2:
+                deposit();
+                break;
+            // Implement cases for withdrawal, balance check, and viewing all accounts
+            case 5:
+                loadAccounts();
+                break;
+            case 0:
+                printf("Exiting the program. Goodbye!\n");
+                break;
+            default:
+                printf("Invalid choice. Please try again.\n");
+        }
+    } while (choice != 0);
     return 0;
 }
